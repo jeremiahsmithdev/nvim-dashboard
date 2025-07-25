@@ -9,6 +9,7 @@ local config = {
   show_tree = true,
   show_readme = true,
   tree_width = 30,
+  hijack_directories = true,  -- Take over directory opening from nvim-tree/netrw
 }
 
 function M.setup(opts)
@@ -28,6 +29,10 @@ end
 
 function M.close()
   dashboard.close()
+end
+
+function M.get_config()
+  return config
 end
 
 return M

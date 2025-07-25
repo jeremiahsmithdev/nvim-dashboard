@@ -5,6 +5,61 @@ function M.has_nvim_tree()
   return ok
 end
 
+function M.is_nvim_tree_open()
+  if not M.has_nvim_tree() then
+    return false
+  end
+  
+  local nvim_tree_view = require('nvim-tree.view')
+  return nvim_tree_view.is_visible()
+end
+
+function M.disable_nvim_tree_hijacking()
+  if not M.has_nvim_tree() then
+    return false
+  end
+  
+  local nvim_tree_config = require('nvim-tree.config')
+  local original_hijack_netrw = nvim_tree_config.hijack_netrw
+  local original_disable_netrw = nvim_tree_config.disable_netrw
+  
+  if original_hijack_netrw or original_disable_netrw then
+    vim.g.nvim_tree_hijack_netrw = 0
+    vim.g.nvim_tree_disable_netrw = 0
+    
+    return {
+      restore = function()
+        vim.g.nvim_tree_hijack_netrw = original_hijack_netrw and 1 or 0
+        vim.g.nvim_tree_disable_netrw = original_disable_netrw and 1 or 0
+      end
+    }
+  end
+  
+  return false
+end
+
+function M.replace_nvim_tree_with_dashboard(path)
+  if not M.has_nvim_tree() then
+    return false
+  end
+  
+  local nvim_tree_view = require('nvim-tree.view')
+  local nvim_tree_api = require('nvim-tree.api')
+  
+  if nvim_tree_view.is_visible() then
+    nvim_tree_api.tree.close()
+    
+    vim.schedule(function()
+      local dashboard = require('nvim-dashboard')
+      dashboard.open(path)
+    end)
+    
+    return true
+  end
+  
+    return false
+end
+
 function M.setup_nvim_tree(tree_win, path)
   if not M.has_nvim_tree() then
     return false

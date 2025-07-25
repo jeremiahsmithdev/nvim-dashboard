@@ -44,20 +44,45 @@ nvim /path/to/project
 You can also open the dashboard manually with the `:Dashboard` command:
 
 ```vim
-:Dashboard
+:Dashboard                    " Open dashboard for current directory
+:Dashboard /path/to/project   " Open dashboard for specific directory
 ```
 
 ## Configuration
 
 ```lua
 require('nvim-dashboard').setup({
-  width = 0.8,        -- Dashboard width as fraction of screen
-  height = 0.8,       -- Dashboard height as fraction of screen
-  show_tree = true,   -- Show file tree panel
-  show_readme = true, -- Show README in main buffer
-  tree_width = 30,    -- Width of the file tree panel
+  width = 0.8,               -- Dashboard width as fraction of screen
+  height = 0.8,              -- Dashboard height as fraction of screen
+  show_tree = true,          -- Show file tree panel
+  show_readme = true,        -- Show README in main buffer
+  tree_width = 30,           -- Width of the file tree panel
+  hijack_directories = true, -- Take over directory opening from nvim-tree/netrw
 })
 ```
+
+## Directory Hijacking
+
+By default, nvim-dashboard takes over directory opening to show the project dashboard instead of nvim-tree or netrw. This behavior can be controlled with the `hijack_directories` configuration option.
+
+### How it works
+
+1. **Startup**: When you open Neovim with a directory (`nvim /path/to/project`), the dashboard opens instead of nvim-tree
+2. **Directory Navigation**: When navigating to directories, the dashboard replaces nvim-tree or netrw
+3. **Smart Detection**: The plugin detects when nvim-tree has opened and seamlessly replaces it with the dashboard
+4. **Temporary Disable**: nvim-tree's hijacking is temporarily disabled during dashboard creation, then restored
+
+### Disabling Directory Hijacking
+
+If you prefer nvim-tree or netrw to handle directories normally, disable hijacking:
+
+```lua
+require('nvim-dashboard').setup({
+  hijack_directories = false,
+})
+```
+
+With this setting, you can still open the dashboard manually with `:Dashboard` or `:Dashboard /path/to/directory`.
 
 ## nvim-tree Integration
 
