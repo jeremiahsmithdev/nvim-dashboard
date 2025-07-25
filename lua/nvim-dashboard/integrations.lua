@@ -19,23 +19,48 @@ function M.disable_nvim_tree_hijacking()
     return false
   end
   
-  local nvim_tree_config = require('nvim-tree.config')
-  local original_hijack_netrw = nvim_tree_config.hijack_netrw
-  local original_disable_netrw = nvim_tree_config.disable_netrw
+  -- Store original values
+  local original_values = {}
   
-  if original_hijack_netrw or original_disable_netrw then
-    vim.g.nvim_tree_hijack_netrw = 0
-    vim.g.nvim_tree_disable_netrw = 0
+  pcall(function()
+    local nvim_tree_config = require('nvim-tree.config')
+    original_values.hijack_netrw = nvim_tree_config.hijack_netrw
+    original_values.disable_netrw = nvim_tree_config.disable_netrw
+  end)
+  
+  -- Aggressively disable nvim-tree hijacking through multiple methods
+  vim.g.nvim_tree_hijack_netrw = 0
+  vim.g.nvim_tree_disable_netrw = 0
+  
+  -- Try to modify the loaded config
+  pcall(function()
+    local nvim_tree = require('nvim-tree')
+    local config = require('nvim-tree.config')
     
-    return {
-      restore = function()
-        vim.g.nvim_tree_hijack_netrw = original_hijack_netrw and 1 or 0
-        vim.g.nvim_tree_disable_netrw = original_disable_netrw and 1 or 0
-      end
-    }
-  end
+    -- Temporarily modify config
+    config.hijack_netrw = false
+    config.disable_netrw = false
+    
+    -- Force a config update if possible
+    if nvim_tree.setup then
+      nvim_tree.setup({
+        hijack_netrw = false,
+        disable_netrw = false,
+      })
+    end
+  end)
   
-  return false
+  -- Disable autocommands if they exist
+  pcall(function()
+    vim.api.nvim_del_augroup_by_name('nvim-tree')
+  end)
+  
+  return {
+    restore = function()
+      vim.g.nvim_tree_hijack_netrw = original_values.hijack_netrw and 1 or 0
+      vim.g.nvim_tree_disable_netrw = original_values.disable_netrw and 1 or 0
+    end
+  }
 end
 
 function M.replace_nvim_tree_with_dashboard(path)
@@ -43,21 +68,52 @@ function M.replace_nvim_tree_with_dashboard(path)
     return false
   end
   
-  local nvim_tree_view = require('nvim-tree.view')
-  local nvim_tree_api = require('nvim-tree.api')
+  local success = false
   
-  if nvim_tree_view.is_visible() then
-    nvim_tree_api.tree.close()
+  -- Try multiple methods to detect and close nvim-tree
+  pcall(function()
+    local nvim_tree_view = require('nvim-tree.view')
+    local nvim_tree_api = require('nvim-tree.api')
     
+    if nvim_tree_view.is_visible() then
+      nvim_tree_api.tree.close()
+      success = true
+    end
+  end)
+  
+  -- Also check current buffer
+  local current_buf = vim.api.nvim_get_current_buf()
+  local buf_filetype = vim.api.nvim_buf_get_option(current_buf, 'filetype')
+  
+  if buf_filetype == 'NvimTree' then
+    pcall(function()
+      vim.api.nvim_buf_delete(current_buf, { force = true })
+    end)
+    success = true
+  end
+  
+  -- Check all buffers for nvim-tree
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(buf) then
+      local ft = vim.api.nvim_buf_get_option(buf, 'filetype')
+      if ft == 'NvimTree' then
+        pcall(function()
+          vim.api.nvim_buf_delete(buf, { force = true })
+        end)
+        success = true
+      end
+    end
+  end
+  
+  if success then
     vim.schedule(function()
       local dashboard = require('nvim-dashboard')
       dashboard.open(path)
     end)
-    
     return true
   end
   
-    return false
+  return false
 end
 
 function M.setup_nvim_tree(tree_win, path)

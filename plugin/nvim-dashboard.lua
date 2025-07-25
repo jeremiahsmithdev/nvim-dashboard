@@ -6,14 +6,41 @@ vim.g.loaded_nvim_dashboard = 1
 local dashboard = require('nvim-dashboard')
 local integrations = require('nvim-dashboard.integrations')
 
+-- Create augroup for our autocommands
+local augroup = vim.api.nvim_create_augroup('NvimDashboard', { clear = true })
+
 vim.api.nvim_create_user_command('Dashboard', function(opts)
   local path = opts.args ~= '' and opts.args or vim.fn.getcwd()
   dashboard.open(path)
 end, { nargs = '?' })
 
--- Early autocommand to try preventing nvim-tree hijacking
+-- Very early hook to disable nvim-tree before it can activate
+vim.api.nvim_create_autocmd('User', {
+  pattern = 'VeryLazy',
+  group = augroup,
+  callback = function()
+    local config = dashboard.get_config()
+    if config.hijack_directories then
+      -- Aggressively disable nvim-tree hijacking
+      vim.g.nvim_tree_hijack_netrw = 0
+      vim.g.nvim_tree_disable_netrw = 0
+      if vim.g.loaded_nvim_tree then
+        pcall(function()
+          require('nvim-tree').setup({
+            hijack_netrw = false,
+            disable_netrw = false,
+          })
+        end)
+      end
+    end
+  end,
+})
+
+-- Primary VimEnter handler with multiple fallback strategies
 vim.api.nvim_create_autocmd('VimEnter', {
   pattern = '*',
+  group = augroup,
+  nested = true,
   callback = function()
     local args = vim.fn.argv()
     if #args == 1 and vim.fn.isdirectory(args[1]) == 1 then
@@ -24,38 +51,79 @@ vim.api.nvim_create_autocmd('VimEnter', {
       
       local path = args[1]
       
-      -- Try to disable nvim-tree hijacking temporarily
-      local restore_hijacking = integrations.disable_nvim_tree_hijacking()
-      
-      -- Immediate attempt to open dashboard
+      -- Immediate attempt
       dashboard.open(path)
       
-      -- Delayed check to handle nvim-tree hijacking
+      -- Multiple delayed attempts to catch nvim-tree hijacking
       vim.schedule(function()
-        -- Check if nvim-tree opened instead and replace it
         if integrations.replace_nvim_tree_with_dashboard(path) then
-          -- nvim-tree was replaced successfully
-        else
-          -- Ensure dashboard is open if nothing else happened
-          local current_buf = vim.api.nvim_get_current_buf()
-          local buf_name = vim.api.nvim_buf_get_name(current_buf)
-          if buf_name == '' or vim.fn.isdirectory(buf_name) == 1 then
-            dashboard.open(path)
-          end
+          return
         end
         
-        -- Restore nvim-tree hijacking settings
-        if restore_hijacking and restore_hijacking.restore then
-          restore_hijacking.restore()
+        -- Check if we need to open dashboard
+        local current_buf = vim.api.nvim_get_current_buf()
+        local buf_name = vim.api.nvim_buf_get_name(current_buf)
+        local buf_filetype = vim.api.nvim_buf_get_option(current_buf, 'filetype')
+        
+        if buf_filetype == 'NvimTree' or 
+           buf_name == '' or 
+           vim.fn.isdirectory(buf_name) == 1 then
+          dashboard.open(path)
         end
       end)
+      
+      -- Even more delayed attempt
+      vim.defer_fn(function()
+        if integrations.replace_nvim_tree_with_dashboard(path) then
+          return
+        end
+        
+        local current_buf = vim.api.nvim_get_current_buf()
+        local buf_filetype = vim.api.nvim_buf_get_option(current_buf, 'filetype')
+        
+        if buf_filetype == 'NvimTree' then
+          dashboard.open(path)
+        end
+      end, 50)
     end
   end,
 })
 
--- Additional autocommand for BufEnter to catch directory navigation
+-- Monitor for nvim-tree opening and immediately replace it
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'NvimTree',
+  group = augroup,
+  callback = function()
+    local config = dashboard.get_config()
+    if not config.hijack_directories then
+      return
+    end
+    
+    vim.schedule(function()
+      local args = vim.fn.argv()
+      local path
+      
+      if #args == 1 and vim.fn.isdirectory(args[1]) == 1 then
+        path = args[1]
+      else
+        path = vim.fn.getcwd()
+      end
+      
+      if integrations.replace_nvim_tree_with_dashboard(path) then
+        return
+      end
+      
+      -- Force close nvim-tree and open dashboard
+      vim.cmd('silent! bdelete!')
+      dashboard.open(path)
+    end)
+  end,
+})
+
+-- BufEnter handler for directory navigation
 vim.api.nvim_create_autocmd('BufEnter', {
   pattern = '*',
+  group = augroup,
   callback = function()
     local config = dashboard.get_config()
     if not config.hijack_directories then
@@ -68,13 +136,42 @@ vim.api.nvim_create_autocmd('BufEnter', {
       if vim.v.vim_did_enter == 1 then
         vim.schedule(function()
           if integrations.replace_nvim_tree_with_dashboard(buf_name) then
-            -- nvim-tree was replaced
+            return
           elseif vim.bo.filetype == 'netrw' then
-            -- Replace netrw with dashboard
             dashboard.open(buf_name)
           end
         end)
       end
     end
+  end,
+})
+
+-- Additional safety net - monitor all buffer creations
+vim.api.nvim_create_autocmd('BufNew', {
+  pattern = '*',
+  group = augroup,
+  callback = function()
+    local config = dashboard.get_config()
+    if not config.hijack_directories then
+      return
+    end
+    
+    vim.schedule(function()
+      local buf_filetype = vim.bo.filetype
+      if buf_filetype == 'NvimTree' then
+        local current_buf = vim.api.nvim_get_current_buf()
+        local args = vim.fn.argv()
+        local path
+        
+        if #args == 1 and vim.fn.isdirectory(args[1]) == 1 then
+          path = args[1]
+        else
+          path = vim.fn.getcwd()
+        end
+        
+        vim.api.nvim_buf_delete(current_buf, { force = true })
+        dashboard.open(path)
+      end
+    end)
   end,
 })
