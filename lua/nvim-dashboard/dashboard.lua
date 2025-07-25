@@ -2,24 +2,15 @@ local M = {}
 
 local utils = require('nvim-dashboard.utils')
 local tree = require('nvim-dashboard.tree')
-local navigation = require('nvim-dashboard.navigation')
-
-local state = {
-  main_buf = nil,
-  tree_buf = nil,
-  readme_buf = nil,
-  main_win = nil,
-  tree_win = nil,
-  readme_win = nil,
-  path = nil,
-}
+local state_module = require('nvim-dashboard.state')
 
 function M.create(path, config)
-  state.path = path
+  local state = state_module.get()
+  state_module.set('path', path)
   
   vim.cmd('tabnew')
-  state.main_win = vim.api.nvim_get_current_win()
-  state.main_buf = vim.api.nvim_create_buf(false, true)
+  state_module.set('main_win', vim.api.nvim_get_current_win())
+  state_module.set('main_buf', vim.api.nvim_create_buf(false, true))
   vim.api.nvim_win_set_buf(state.main_win, state.main_buf)
   
   vim.api.nvim_buf_set_option(state.main_buf, 'filetype', 'dashboard')
@@ -44,9 +35,10 @@ function M.create(path, config)
 end
 
 function M.create_tree_window(config)
+  local state = state_module.get()
   vim.cmd('topleft vertical ' .. config.tree_width .. 'split')
-  state.tree_win = vim.api.nvim_get_current_win()
-  state.tree_buf = vim.api.nvim_create_buf(false, true)
+  state_module.set('tree_win', vim.api.nvim_get_current_win())
+  state_module.set('tree_buf', vim.api.nvim_create_buf(false, true))
   vim.api.nvim_win_set_buf(state.tree_win, state.tree_buf)
   
   vim.api.nvim_buf_set_option(state.tree_buf, 'filetype', 'dashboard-tree')
@@ -64,11 +56,12 @@ function M.create_tree_window(config)
 end
 
 function M.create_readme_window(config)
+  local state = state_module.get()
   local readme_path = utils.find_readme(state.path)
   
   if readme_path then
     vim.cmd('edit ' .. readme_path)
-    state.readme_buf = vim.api.nvim_get_current_buf()
+    state_module.set('readme_buf', vim.api.nvim_get_current_buf())
     vim.api.nvim_buf_set_option(state.readme_buf, 'readonly', true)
     vim.api.nvim_buf_set_option(state.readme_buf, 'modifiable', false)
   else
@@ -77,6 +70,7 @@ function M.create_readme_window(config)
 end
 
 function M.show_project_info()
+  local state = state_module.get()
   local lines = {
     '',
     '  📁 ' .. vim.fn.fnamemodify(state.path, ':t'),
@@ -99,6 +93,7 @@ function M.show_project_info()
 end
 
 function M.setup_keymaps()
+  local state = state_module.get()
   local opts = { noremap = true, silent = true }
   
   if state.tree_buf then
@@ -114,21 +109,16 @@ function M.setup_keymaps()
 end
 
 function M.close()
+  local state = state_module.get()
   if state.main_win and vim.api.nvim_win_is_valid(state.main_win) then
     vim.api.nvim_win_close(state.main_win, true)
   end
   
-  state.main_buf = nil
-  state.tree_buf = nil
-  state.readme_buf = nil
-  state.main_win = nil
-  state.tree_win = nil
-  state.readme_win = nil
-  state.path = nil
+  state_module.reset()
 end
 
 function M.get_state()
-  return state
+  return state_module.get()
 end
 
 return M
