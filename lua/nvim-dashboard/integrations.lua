@@ -1,8 +1,23 @@
 local M = {}
 
 function M.has_nvim_tree()
-  local ok, _ = pcall(require, 'nvim-tree')
-  return ok
+  -- Check for the main module and the specific submodules we need
+  local ok_main = pcall(require, 'nvim-tree')
+  if not ok_main then
+    return false
+  end
+  
+  local ok_api = pcall(require, 'nvim-tree.api')
+  if not ok_api then
+    return false
+  end
+  
+  local ok_view = pcall(require, 'nvim-tree.view')
+  if not ok_view then
+    return false
+  end
+  
+  return true
 end
 
 function M.is_nvim_tree_open()
@@ -10,8 +25,12 @@ function M.is_nvim_tree_open()
     return false
   end
   
-  local nvim_tree_view = require('nvim-tree.view')
-  return nvim_tree_view.is_visible()
+  local success, result = pcall(function()
+    local nvim_tree_view = require('nvim-tree.view')
+    return nvim_tree_view.is_visible()
+  end)
+  
+  return success and result
 end
 
 function M.disable_nvim_tree_hijacking()
@@ -121,19 +140,21 @@ function M.setup_nvim_tree(tree_win, path)
     return false
   end
   
-  local nvim_tree_api = require('nvim-tree.api')
-  local nvim_tree_view = require('nvim-tree.view')
+  local success = pcall(function()
+    local nvim_tree_api = require('nvim-tree.api')
+    local nvim_tree_view = require('nvim-tree.view')
+    
+    vim.api.nvim_set_current_win(tree_win)
+    
+    nvim_tree_api.tree.open({
+      path = path,
+      current_window = true,
+    })
+    
+    vim.api.nvim_win_set_option(tree_win, 'winfixwidth', true)
+  end)
   
-  vim.api.nvim_set_current_win(tree_win)
-  
-  nvim_tree_api.tree.open({
-    path = path,
-    current_window = true,
-  })
-  
-  vim.api.nvim_win_set_option(tree_win, 'winfixwidth', true)
-  
-  return true
+  return success
 end
 
 function M.close_nvim_tree()
@@ -141,8 +162,10 @@ function M.close_nvim_tree()
     return
   end
   
-  local nvim_tree_api = require('nvim-tree.api')
-  nvim_tree_api.tree.close()
+  pcall(function()
+    local nvim_tree_api = require('nvim-tree.api')
+    nvim_tree_api.tree.close()
+  end)
 end
 
 function M.get_nvim_tree_config()
