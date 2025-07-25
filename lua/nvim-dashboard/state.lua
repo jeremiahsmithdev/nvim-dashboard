@@ -8,6 +8,7 @@ local state = {
   tree_win = nil,
   readme_win = nil,
   path = nil,
+  using_nvim_tree = false,
 }
 
 function M.get()
@@ -26,6 +27,7 @@ function M.reset()
   state.tree_win = nil
   state.readme_win = nil
   state.path = nil
+  state.using_nvim_tree = false
 end
 
 return M

@@ -6,7 +6,7 @@ A Neovim plugin that provides a project dashboard with directory overview when o
 
 - **Dashboard View**: Automatically opens when starting Neovim with a directory
 - **README Display**: Shows project README in the main buffer
-- **File Tree**: Interactive file browser in a side panel
+- **Smart File Tree**: Uses nvim-tree when available, falls back to built-in tree
 - **File Navigation**: Open files and expand directories directly from the tree
 - **Project Overview**: Displays project information when no README is found
 
@@ -59,10 +59,30 @@ require('nvim-dashboard').setup({
 })
 ```
 
+## nvim-tree Integration
+
+This plugin automatically detects and integrates with [nvim-tree](https://github.com/nvim-tree/nvim-tree.lua) when available:
+
+- **Automatic Detection**: If nvim-tree is installed, it will be used for the file tree
+- **Fallback Support**: If nvim-tree is not available, uses a built-in tree implementation
+- **Native Keybindings**: When using nvim-tree, all native nvim-tree keybindings are available
+- **Seamless Integration**: The dashboard layout adapts automatically to the tree type being used
+
+### Benefits of nvim-tree Integration
+
+- **Rich Features**: Full nvim-tree functionality including git integration, file operations, and custom icons
+- **Familiar Interface**: If you're already using nvim-tree, the same keybindings work
+- **No Configuration Required**: Integration is automatic when nvim-tree is detected
+
 ## Keybindings
 
 ### In File Tree
 
+**When using nvim-tree:**
+- All standard nvim-tree keybindings are available
+- Refer to [nvim-tree documentation](https://github.com/nvim-tree/nvim-tree.lua#keybindings) for complete list
+
+**When using built-in tree:**
 - `<CR>` or `o`: Open file or expand directory
 - `q`: Close dashboard
 
@@ -80,8 +100,10 @@ nvim-dashboard/
 │   └── nvim-dashboard/
 │       ├── init.lua                # Main module
 │       ├── dashboard.lua           # Dashboard UI logic
-│       ├── tree.lua                # File tree component
+│       ├── tree.lua                # Built-in tree component
 │       ├── navigation.lua          # Navigation handlers
+│       ├── integrations.lua        # nvim-tree integration
+│       ├── state.lua               # State management
 │       └── utils.lua               # Utility functions
 └── README.md                       # This file
 ```

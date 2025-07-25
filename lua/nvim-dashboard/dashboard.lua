@@ -3,6 +3,7 @@ local M = {}
 local utils = require('nvim-dashboard.utils')
 local tree = require('nvim-dashboard.tree')
 local state_module = require('nvim-dashboard.state')
+local integrations = require('nvim-dashboard.integrations')
 
 function M.create(path, config)
   local state = state_module.get()
@@ -38,6 +39,19 @@ function M.create_tree_window(config)
   local state = state_module.get()
   vim.cmd('topleft vertical ' .. config.tree_width .. 'split')
   state_module.set('tree_win', vim.api.nvim_get_current_win())
+  
+  local using_nvim_tree = integrations.has_nvim_tree()
+  state_module.set('using_nvim_tree', using_nvim_tree)
+  
+  if using_nvim_tree then
+    local success = integrations.setup_nvim_tree(state.tree_win, state.path)
+    if success then
+      vim.api.nvim_set_current_win(state.main_win)
+      return
+    end
+    state_module.set('using_nvim_tree', false)
+  end
+  
   state_module.set('tree_buf', vim.api.nvim_create_buf(false, true))
   vim.api.nvim_win_set_buf(state.tree_win, state.tree_buf)
   
@@ -71,6 +85,8 @@ end
 
 function M.show_project_info()
   local state = state_module.get()
+  local tree_info = state.using_nvim_tree and 'nvim-tree' or 'built-in tree'
+  
   local lines = {
     '',
     '  📁 ' .. vim.fn.fnamemodify(state.path, ':t'),
@@ -78,12 +94,13 @@ function M.show_project_info()
     '  📂 Project Dashboard',
     '',
     '  Path: ' .. state.path,
+    '  Tree: ' .. tree_info,
     '',
     '  No README found in this directory.',
     '',
     '  Navigation:',
     '    • Use the file tree on the left to browse files',
-    '    • Press <CR> to open files/folders',
+    state.using_nvim_tree and '    • nvim-tree keybindings are active' or '    • Press <CR> to open files/folders',
     '    • Press q to close the dashboard',
     '',
   }
@@ -96,7 +113,7 @@ function M.setup_keymaps()
   local state = state_module.get()
   local opts = { noremap = true, silent = true }
   
-  if state.tree_buf then
+  if not state.using_nvim_tree and state.tree_buf then
     vim.api.nvim_buf_set_keymap(state.tree_buf, 'n', '<CR>', '<cmd>lua require("nvim-dashboard.navigation").open_file()<CR>', opts)
     vim.api.nvim_buf_set_keymap(state.tree_buf, 'n', 'o', '<cmd>lua require("nvim-dashboard.navigation").open_file()<CR>', opts)
   end
@@ -110,6 +127,11 @@ end
 
 function M.close()
   local state = state_module.get()
+  
+  if state.using_nvim_tree then
+    integrations.close_nvim_tree()
+  end
+  
   if state.main_win and vim.api.nvim_win_is_valid(state.main_win) then
     vim.api.nvim_win_close(state.main_win, true)
   end
